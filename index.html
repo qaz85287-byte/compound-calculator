@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>複利計算(含PDF匯出)</title>
+    <!-- 引入 Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入 html2pdf.js 負責將網頁轉為 PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { display: flex; padding: 20px; font-family: sans-serif; gap: 40px; background-color: #f8fafc; }
+        .input-panel { width: 320px; border-right: 1px solid #ccc; padding-right: 20px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); height: fit-content; }
+        .input-group { margin-bottom: 20px; }
+        label { font-weight: bold; font-size: 14px; color: #333; }
+        input { width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 5px; }
+        button { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; cursor: pointer; border-radius: 5px; font-size: 16px; font-weight: bold; }
+        button:hover { background: #1d4ed8; }
+        
+        /* 匯出按鈕區域樣式 */
+        .export-controls { display: flex; justify-content: flex-end; margin-bottom: 15px; }
+        .btn-export { width: auto; padding: 8px 15px; font-size: 14px; border-radius: 5px; color: white; border: none; cursor: pointer; }
+        .btn-pdf { background: #ef4444; }
+        .btn-pdf:hover { background: #dc2626; }
+
+        .result-panel { flex-grow: 1; max-width: 900px; }
+        
+        /* 列印區域樣式 (確保背景為白色) */
+        #printArea { background: #f8fafc; padding: 10px; border-radius: 10px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; background: white; }
+        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: center; }
+        th { background-color: #f1f5f9; color: #334155; }
+        
+        /* 表格滾動設定 */
+        .table-scroll-container { max-height: 400px; overflow-y: auto; margin-top: 15px; border: 1px solid #e2e8f0; border-radius: 5px; background: white; }
+        #yearlyTable th { position: sticky; top: 0; background: #e2e8f0; z-index: 1; box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1); }
+        #yearlyTable tr:nth-child(even) { background-color: #f8fafc; }
+    </style>
+</head>
+<body>
+
+<div class="input-panel">
+    <h3>複利計算設定</h3>
+    <div class="input-group">
+        <label>本金 (投資金額初值)</label>
+        <input type="number" id="p" value="100000">
+        <label>年利率 (%)</label>
+        <input type="number" id="r" value="10">
+        <label>年期 (年)</label>
+        <input type="number" id="y" value="10">
+        <label style="display: block; margin-top: 10px; margin-bottom: 5px;">
+            <input type="checkbox" id="enableMonthly" style="width: auto;"> 定期定額 (第二個月起)
+        </label>
+        <input type="number" id="m" placeholder="每月投入金額" value="0">
+    </div>
+    <button onclick="calculate()">開始計算</button>
+</div>
+
+<div class="result-panel">
+    
+    <!-- 匯出按鈕區塊 -->
+    <div class="export-controls" id="exportArea">
+        <button class="btn-export btn-pdf" id="pdfBtn" onclick="downloadPDF()">📄 匯出 PDF 報告</button>
+    </div>
+
+    <!-- 準備被轉成 PDF 的主要區塊 -->
+    <div id="printArea">
+        <h2 style="text-align: center; color: #1e293b; margin-top: 0;">複利成長分析報告</h2>
+        
+        <h3 style="margin-top: 20px;">成長趨勢圖</h3>
+        <div style="background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <canvas id="myChart" height="100"></canvas>
+        </div>
+
+        <h3 style="margin-top: 30px;">總結報告</h3>
+        <table>
+            <tr><th>配息頻率</th><th>累積投入本金</th><th>最終總金額</th><th>總報酬率</th></tr>
+            <tr><td>不配息 (每日滾入)</td><td id="baseP_n">0</td><td id="total_n" style="color: #8b5cf6; font-weight: bold;">0</td><td id="rate_n">0</td></tr>
+            <tr><td>月配 (每月複利)</td><td id="baseP_m">0</td><td id="total_m" style="color: #ef4444; font-weight: bold;">0</td><td id="rate_m">0</td></tr>
+            <tr><td>季配 (每季複利)</td><td id="baseP_q">0</td><td id="total_q" style="color: #f97316; font-weight: bold;">0</td><td id="rate_q">0</td></tr>
+            <tr><td>年配 (原複利)</td><td id="baseP_y">0</td><td id="total_y" style="color: #3b82f6; font-weight: bold;">0</td><td id="rate_y">0</td></tr>
+            <tr><td>單利</td><td id="baseP_s">0</td><td id="total_s" style="color: #22c55e; font-weight: bold;">0</td><td id="rate_s">0</td></tr>
+        </table>
+
+        <h3 style="margin-top: 30px;">年度明細表</h3>
+        <div class="table-scroll-container" id="tableContainer">
+            <table id="yearlyTable">
+                <thead>
+                    <tr>
+                        <th>年份</th>
+                        <th>累積本金</th>
+                        <th>單利</th>
+                        <th>年配</th>
+                        <th>季配</th>
+                        <th>月配</th>
+                        <th>不配息</th>
+                    </tr>
+                </thead>
+                <tbody id="yearlyTableBody">
+                    <!-- JavaScript 動態插入 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let chart;
+
+    function calculate() {
+        const p = parseFloat(document.getElementById('p').value) || 0;
+        const r = parseFloat(document.getElementById('r').value) / 100 || 0;
+        const y = parseInt(document.getElementById('y').value) || 0;
+        const m = document.getElementById('enableMonthly').checked ? (parseFloat(document.getElementById('m').value) || 0) : 0;
+
+        let compData = [], simpleData = [], baseData = [], labels = [];
+        let monthData = [], quarterData = [], noneData = [];
+        
+        let curComp = p, curSimple = p, totalInvest = p;
+        let curMonth = p, curQuarter = p, curNone = p;
+
+        let tbodyHtml = ''; 
+
+        for (let i = 0; i <= y; i++) {
+            labels.push(i);
+            baseData.push(totalInvest); 
+            compData.push(Math.round(curComp));
+            simpleData.push(Math.round(curSimple));
+            monthData.push(Math.round(curMonth));
+            quarterData.push(Math.round(curQuarter));
+            noneData.push(Math.round(curNone));
+
+            tbodyHtml += `
+                <tr>
+                    <td>第 ${i} 年</td>
+                    <td>${Math.round(totalInvest).toLocaleString()}</td>
+                    <td>${Math.round(curSimple).toLocaleString()}</td>
+                    <td>${Math.round(curComp).toLocaleString()}</td>
+                    <td>${Math.round(curQuarter).toLocaleString()}</td>
+                    <td>${Math.round(curMonth).toLocaleString()}</td>
+                    <td>${Math.round(curNone).toLocaleString()}</td>
+                </tr>
+            `;
+
+            if (i < y) {
+                curComp = curComp * (1 + r) + (m * 12);
+                curSimple += (p * r) + (m * 12);
+                totalInvest += (m * 12);
+
+                for(let q=0; q<4; q++) { curQuarter = curQuarter * (1 + r/4) + (m * 3); }
+                for(let mo=0; mo<12; mo++) { curMonth = curMonth * (1 + r/12) + m; }
+                for(let d=0; d<365; d++) { curNone = curNone * (1 + r/365) + (m * 12 / 365); }
+            }
+        }
+
+        document.getElementById('yearlyTableBody').innerHTML = tbodyHtml;
+        const formatP = totalInvest.toLocaleString();
+        
+        document.getElementById('baseP_n').innerText = formatP;
+        document.getElementById('baseP_m').innerText = formatP;
+        document.getElementById('baseP_q').innerText = formatP;
+        document.getElementById('baseP_y').innerText = formatP;
+        document.getElementById('baseP_s').innerText = formatP;
+
+        document.getElementById('total_n').innerText = Math.round(curNone).toLocaleString();
+        document.getElementById('total_m').innerText = Math.round(curMonth).toLocaleString();
+        document.getElementById('total_q').innerText = Math.round(curQuarter).toLocaleString();
+        document.getElementById('total_y').innerText = Math.round(curComp).toLocaleString();
+        document.getElementById('total_s').innerText = Math.round(curSimple).toLocaleString();
+
+        document.getElementById('rate_n').innerText = Math.round((curNone - totalInvest)/totalInvest*100) + "%";
+        document.getElementById('rate_m').innerText = Math.round((curMonth - totalInvest)/totalInvest*100) + "%";
+        document.getElementById('rate_q').innerText = Math.round((curQuarter - totalInvest)/totalInvest*100) + "%";
+        document.getElementById('rate_y').innerText = Math.round((curComp - totalInvest)/totalInvest*100) + "%";
+        document.getElementById('rate_s').innerText = Math.round((curSimple - totalInvest)/totalInvest*100) + "%";
+
+        if (chart) chart.destroy();
+        chart = new Chart(document.getElementById('myChart'), {
+            type: 'line',
+            data: { labels: labels, datasets: [
+                {label: '不配息', data: noneData, borderColor: '#8b5cf6'},
+                {label: '月配', data: monthData, borderColor: '#ef4444'},
+                {label: '季配', data: quarterData, borderColor: '#f97316'},
+                {label: '年配(原複利)', data: compData, borderColor: '#3b82f6'},
+                {label: '單利', data: simpleData, borderColor: '#22c55e'},
+                {label: '本金', data: baseData, borderColor: '#64748b', borderDash: [5, 5]}
+            ]},
+            options: { 
+                animation: false, 
+                interaction: { mode: 'index', intersect: false } 
+            }
+        });
+    }
+
+    // 產生 PDF 報告功能
+    function downloadPDF() {
+        const btn = document.getElementById('pdfBtn');
+        const element = document.getElementById('printArea');
+        const tableContainer = document.getElementById('tableContainer');
+        
+        // 暫時取消表格的捲動軸設定以印出完整表格
+        tableContainer.style.maxHeight = 'none';
+        tableContainer.style.overflow = 'visible';
+        
+        const originalText = btn.innerText;
+        btn.innerText = '⚙️ 產生 PDF 中...';
+
+        const opt = {
+            margin:       10,
+            filename:     '複利成長分析報告.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(element).save().then(() => {
+            // 恢復捲動軸跟按鈕文字
+            tableContainer.style.maxHeight = '400px';
+            tableContainer.style.overflowY = 'auto';
+            btn.innerText = originalText;
+        });
+    }
+
+    window.onload = calculate;
+</script>
+</body>
+</html>
