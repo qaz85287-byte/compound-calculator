@@ -75,10 +75,10 @@
         <h3 style="margin-top: 30px;">總結報告</h3>
         <table>
             <tr><th>配息頻率</th><th>累積投入本金</th><th>最終總金額</th><th>總報酬率</th></tr>
-            <tr><td>不配息 </td><td id="baseP_n">0</td><td id="total_n" style="color: #8b5cf6; font-weight: bold;">0</td><td id="rate_n">0</td></tr>
-            <tr><td>月配 </td><td id="baseP_m">0</td><td id="total_m" style="color: #ef4444; font-weight: bold;">0</td><td id="rate_m">0</td></tr>
-            <tr><td>季配 </td><td id="baseP_q">0</td><td id="total_q" style="color: #f97316; font-weight: bold;">0</td><td id="rate_q">0</td></tr>
-            <tr><td>年配 </td><td id="baseP_y">0</td><td id="total_y" style="color: #3b82f6; font-weight: bold;">0</td><td id="rate_y">0</td></tr>
+            <tr><td>不配息</td><td id="baseP_n">0</td><td id="total_n" style="color: #8b5cf6; font-weight: bold;">0</td><td id="rate_n">0</td></tr>
+            <tr><td>月配</td><td id="baseP_m">0</td><td id="total_m" style="color: #ef4444; font-weight: bold;">0</td><td id="rate_m">0</td></tr>
+            <tr><td>季配</td><td id="baseP_q">0</td><td id="total_q" style="color: #f97316; font-weight: bold;">0</td><td id="rate_q">0</td></tr>
+            <tr><td>年配</td><td id="baseP_y">0</td><td id="total_y" style="color: #3b82f6; font-weight: bold;">0</td><td id="rate_y">0</td></tr>
             <tr><td>單利</td><td id="baseP_s">0</td><td id="total_s" style="color: #22c55e; font-weight: bold;">0</td><td id="rate_s">0</td></tr>
         </table>
 
@@ -181,7 +181,7 @@
                 {label: '不配息', data: noneData, borderColor: '#8b5cf6'},
                 {label: '月配', data: monthData, borderColor: '#ef4444'},
                 {label: '季配', data: quarterData, borderColor: '#f97316'},
-                {label: '年配(原複利)', data: compData, borderColor: '#3b82f6'},
+                {label: '年配', data: compData, borderColor: '#3b82f6'},
                 {label: '單利', data: simpleData, borderColor: '#22c55e'},
                 {label: '本金', data: baseData, borderColor: '#64748b', borderDash: [5, 5]}
             ]},
@@ -192,13 +192,11 @@
         });
     }
 
-    // 產生 PDF 報告功能
     function downloadPDF() {
         const btn = document.getElementById('pdfBtn');
         const element = document.getElementById('printArea');
         const tableContainer = document.getElementById('tableContainer');
         
-        // 暫時取消表格的捲動軸設定以印出完整表格
         tableContainer.style.maxHeight = 'none';
         tableContainer.style.overflow = 'visible';
         
@@ -214,7 +212,6 @@
         };
 
         html2pdf().set(opt).from(element).save().then(() => {
-            // 恢復捲動軸跟按鈕文字
             tableContainer.style.maxHeight = '400px';
             tableContainer.style.overflowY = 'auto';
             btn.innerText = originalText;
